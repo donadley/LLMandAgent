@@ -11,7 +11,7 @@ class Logger {
   private static instance: Logger;
   private readonly maxLogSize = 1000;
   private logs: LogEntry[] = [];
-  private readonly isProd = process.env.NODE_ENV === 'production';
+  private readonly isProd = import.meta.env.MODE === 'production';
 
   private constructor() {
     window.addEventListener('error', (event) => {

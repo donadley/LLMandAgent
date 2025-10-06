@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 import os
-from langchain.llms import LlamaCpp
+from langchain_community.llms import LlamaCpp
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from agents.agent_manager import AgentManager
@@ -24,18 +24,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize LLM
+# Initialize LLMs from config
+from models.configs.model_config import AVAILABLE_MODELS, ModelType
+
 callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-llm = LlamaCpp(
-    model_path="./models/llama-2-7b.Q4_K_M.gguf",
+
+# Initialize general-purpose LLM (Mistral)
+general_llm = LlamaCpp(
+    model_path=AVAILABLE_MODELS[ModelType.GENERAL].model_path,
     callback_manager=callback_manager,
-    temperature=0.7,
-    max_tokens=2000,
+    temperature=AVAILABLE_MODELS[ModelType.GENERAL].temperature,
+    max_tokens=AVAILABLE_MODELS[ModelType.GENERAL].max_tokens,
     verbose=True,
 )
 
-# Initialize Agent Manager
-agent_manager = AgentManager(llm)
+# Initialize code-specific LLM (CodeLlama)
+code_llm = LlamaCpp(
+    model_path=AVAILABLE_MODELS[ModelType.CODE].model_path,
+    callback_manager=callback_manager,
+    temperature=AVAILABLE_MODELS[ModelType.CODE].temperature,
+    max_tokens=AVAILABLE_MODELS[ModelType.CODE].max_tokens,
+    verbose=True,
+)
+
+# Initialize Agent Manager with general-purpose LLM
+agent_manager = AgentManager(general_llm)
 
 class Query(BaseModel):
     text: str
@@ -51,7 +64,11 @@ async def chat(query: Query):
             response = await agent_manager.process_message(query.text)
         else:
             logger.info("Using direct LLM response")
-            response = llm(query.text)
+            # Use code_llm for code-related queries, general_llm for everything else
+            if any(code_indicator in query.text.lower() for code_indicator in ['code', 'program', 'function', 'class', 'debug']):
+                response = code_llm(query.text)
+            else:
+                response = general_llm(query.text)
         logger.info("Successfully processed chat request")
         return {"response": response}
     except Exception as e:
