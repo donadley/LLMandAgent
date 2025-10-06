@@ -9,6 +9,7 @@ import {
   HStack,
 } from '@chakra-ui/react';
 import { useToaster } from './ui/toaster';
+import { logger } from '../services/logger';
 import axios from 'axios';
 
 interface Message {
@@ -32,9 +33,13 @@ export const Chat = () => {
   }, [messages]);
 
   const handleSubmit = async () => {
-    if (!input.trim()) return;
+    if (!input.trim()) {
+      logger.debug('Empty input, ignoring submission');
+      return;
+    }
 
     const userMessage = input;
+    logger.info('Sending message to server', { message: userMessage });
     setInput('');
     setMessages(prev => [...prev, { text: userMessage, isUser: true }]);
     setIsLoading(true);
@@ -44,8 +49,12 @@ export const Chat = () => {
         text: userMessage,
       });
 
+      logger.info('Received response from server', { 
+        messageLength: response.data.response.length 
+      });
       setMessages(prev => [...prev, { text: response.data.response, isUser: false }]);
     } catch (error) {
+      logger.error('Failed to get response from server', { error });
       toast.create({
         title: 'Error',
         description: 'Failed to get response from the server',
@@ -55,6 +64,7 @@ export const Chat = () => {
       });
     } finally {
       setIsLoading(false);
+      logger.debug('Chat interaction completed');
     }
   };
 

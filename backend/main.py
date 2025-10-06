@@ -8,6 +8,10 @@ from langchain.llms import LlamaCpp
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from agents.agent_manager import AgentManager
+from utils.logger import setup_logger
+
+# Set up logger
+logger = setup_logger("api")
 
 app = FastAPI()
 
@@ -40,15 +44,18 @@ class Query(BaseModel):
 
 @app.post("/api/chat")
 async def chat(query: Query):
+    logger.info(f"Received chat request: {query.text[:100]}...")
     try:
         if query.use_agent:
-            # Use agent for complex queries
+            logger.info("Using agent for processing")
             response = await agent_manager.process_message(query.text)
         else:
-            # Direct LLM response for simple queries
+            logger.info("Using direct LLM response")
             response = llm(query.text)
+        logger.info("Successfully processed chat request")
         return {"response": response}
     except Exception as e:
+        logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/health")
