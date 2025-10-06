@@ -27,8 +27,8 @@ AVAILABLE_MODELS = {
         name="mistral-7b-instruct",
         model_path="./models/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
         model_type=ModelType.GENERAL,
-        temperature=0.7,
-        max_tokens=2000,
+        temperature=0.3,
+        max_tokens=500,
     ),
     ModelType.CODE: ModelConfig(
         name="codellama-7b-instruct",
