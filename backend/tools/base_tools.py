@@ -64,39 +64,74 @@ class WeatherTool(BaseTool):
 
 class WebSearchTool(BaseTool):
     name: str = "web_search"
-    description: str = "Search the web for current information"
+    description: str = "Use this tool when you need to search for information about topics, animals, history, or any general knowledge. Input should be a search query."
 
     async def _arun(self, query: str) -> str:
         # Using Wikipedia API as a free source of information
         try:
-            async with aiohttp.ClientSession() as session:
+            # Add proper user agent and headers for Wikipedia API
+            headers = {
+                'User-Agent': 'LLMandAgent/1.0 (https://github.com/donadley/LLMandAgent; info@llmandagent.com) Python/3.9',
+                'Accept': 'application/json'
+            }
+            
+            async with aiohttp.ClientSession(headers=headers) as session:
+                # First search for articles
                 params = {
                     'action': 'query',
                     'format': 'json',
                     'list': 'search',
-                    'srsearch': query,
-                    'utf8': 1
+                    'srsearch': str(query),
+                    'utf8': '1',  # Changed to string
+                    'srlimit': '3'  # Changed to string
                 }
+                
                 async with session.get('https://en.wikipedia.org/w/api.php', params=params) as response:
-                    data = await response.json()
+                    if response.status != 200:
+                        error_text = await response.text()
+                        return f"Error: Could not search Wikipedia (Status: {response.status}). {error_text}"
+                        
+                    try:
+                        data = await response.json()
+                    except Exception as e:
+                        return f"Error: Could not parse Wikipedia response. {str(e)}"
+                        
                     results = data.get('query', {}).get('search', [])
-                    if results:
-                        # Get first result's extract
-                        title = results[0]['title']
-                        extract_params = {
-                            'action': 'query',
-                            'format': 'json',
-                            'prop': 'extracts',
-                            'exintro': True,
-                            'explaintext': True,
-                            'titles': title
-                        }
-                        async with session.get('https://en.wikipedia.org/w/api.php', params=extract_params) as extract_response:
-                            extract_data = await extract_response.json()
-                            pages = extract_data.get('query', {}).get('pages', {})
-                            page = next(iter(pages.values()))
-                            return page.get('extract', 'No information found')
-                    return "No results found"
+                    if not results:
+                        return "No results found for your query."
+                    
+                    # Get extracts for top results
+                    titles = [result['title'] for result in results[:3]]
+                    extract_params = {
+                        'action': 'query',
+                        'format': 'json',
+                        'prop': 'extracts',
+                        'exintro': '1',  # Changed to string
+                        'explaintext': '1',  # Changed to string
+                        'titles': '|'.join(titles)
+                    }
+                    
+                    async with session.get('https://en.wikipedia.org/w/api.php', params=extract_params) as extract_response:
+                        if extract_response.status != 200:
+                            return f"Error: Could not fetch article details (Status: {extract_response.status})"
+                            
+                        extract_data = await extract_response.json()
+                        pages = extract_data.get('query', {}).get('pages', {})
+                        
+                        # Combine information from multiple results
+                        summaries = []
+                        for page in pages.values():
+                            title = page.get('title', '')
+                            extract = page.get('extract', '')
+                            if extract:
+                                # Limit extract length and add to summaries
+                                summary = f"\n• {title}:\n{extract[:500]}..."
+                                summaries.append(summary)
+                        
+                        if summaries:
+                            return "Here's what I found:" + ''.join(summaries)
+                        else:
+                            return "Found articles but couldn't get detailed information."
         except Exception as e:
             return f"Error searching web: {str(e)}"
 
