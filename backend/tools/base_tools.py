@@ -11,18 +11,51 @@ class WeatherTool(BaseTool):
     description: str = "Search for current weather information using OpenMeteo API"
 
     async def _arun(self, query: str) -> str:
-        # Using free OpenMeteo API
+        # Using free OpenMeteo API and Nominatim for geocoding
         try:
-            # First, get coordinates (you can enhance this with a free geocoding service)
-            # For now, using New York as example
-            lat, lon = 40.7128, -74.0060
+            # First, get coordinates using Nominatim geocoding
+            location = query.lower().replace("weather in ", "").replace("what's the weather in ", "").replace("what is the weather in ", "").strip()
+            if not location or location == "today" or "current" in location:
+                # Default to New York if no location specified
+                lat, lon = 40.7128, -74.0060
+                location = "New York"
+            else:
+                # Use Nominatim geocoding
+                async with aiohttp.ClientSession() as session:
+                    geocode_url = f"https://nominatim.openstreetmap.org/search?q={location}&format=json&limit=1"
+                    headers = {'User-Agent': 'LLMandAgent/1.0'}
+                    async with session.get(geocode_url, headers=headers) as geocode_response:
+                        geocode_data = await geocode_response.json()
+                        if not geocode_data:
+                            return f"Could not find location: {location}"
+                        lat = float(geocode_data[0]['lat'])
+                        lon = float(geocode_data[0]['lon'])
             
+            # Get weather data
             async with aiohttp.ClientSession() as session:
-                url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+                url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m"
                 async with session.get(url) as response:
                     data = await response.json()
-                    weather = data.get('current_weather', {})
-                    return f"Current temperature: {weather.get('temperature')}°C, Wind speed: {weather.get('windspeed')} km/h"
+                    current = data.get('current', {})
+                    
+                    # Convert weather code to description
+                    weather_codes = {
+                        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+                        45: "Foggy", 48: "Depositing rime fog",
+                        51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
+                        61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+                        71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow",
+                        77: "Snow grains", 85: "Snow showers", 86: "Heavy snow showers",
+                        95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Thunderstorm with heavy hail"
+                    }
+                    weather_desc = weather_codes.get(current.get('weather_code'), "Unknown conditions")
+                    
+                    return (f"Current weather in {location}:\n"
+                           f"• Conditions: {weather_desc}\n"
+                           f"• Temperature: {current.get('temperature_2m')}°C (Feels like: {current.get('apparent_temperature')}°C)\n"
+                           f"• Humidity: {current.get('relative_humidity_2m')}%\n"
+                           f"• Wind: {current.get('wind_speed_10m')} km/h from {current.get('wind_direction_10m')}°\n"
+                           f"• Precipitation: {current.get('precipitation')} mm")
         except Exception as e:
             return f"Error fetching weather: {str(e)}"
 
