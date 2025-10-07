@@ -11,7 +11,7 @@ class ModelConfig:
         name: str,
         model_path: str,
         model_type: ModelType,
-        temperature: float = 0.7,
+        temperature: float = 0.3,
         max_tokens: int = 2000,
         context_window: int = 4096
     ):
