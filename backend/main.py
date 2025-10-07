@@ -85,11 +85,48 @@ async def classify_query(text: str) -> Dict[str, Any]:
         logger.error(f"Error classifying query: {str(e)}")
         return {"category": "GENERAL", "reason": "Classification failed, defaulting to general"}
 
+def get_greeting_response(text: str) -> Optional[str]:
+    """Return an appropriate greeting response if the input is a greeting, None otherwise."""
+    greetings = {
+        'hi': "Hello! How can I help you today?",
+        'hello': "Hello! How can I help you today?",
+        'hey': "Hi there! How can I assist you?",
+        'good morning': "Good morning! How can I help you today?",
+        'good afternoon': "Good afternoon! How can I assist you?",
+        'good evening': "Good evening! How can I help you?",
+        'hi there': "Hello! How can I help you today?",
+        'greetings': "Hello! How can I assist you today?",
+    }
+    
+    text = text.lower().strip()
+    for greeting in greetings:
+        if text.startswith(greeting):
+            return greetings[greeting]
+    return None
+
 @app.post("/api/chat")
 async def chat(query: Query):
     logger.info(f"Received chat request: {query.text[:100]}...")
     try:
-        # Classify the query
+        lower_text = query.text.lower().strip()
+        
+        # Check for thank you messages first
+        if any(phrase in lower_text for phrase in ['thank you', 'thanks', 'thx', 'thank u']):
+            response = "You're welcome! Let me know if you need anything else."
+            return {
+                "response": response,
+                "classification": {"category": "GENERAL", "reason": "Thank you acknowledgment"}
+            }
+            
+        # Check for greetings
+        greeting_response = get_greeting_response(lower_text)
+        if greeting_response:
+            return {
+                "response": greeting_response,
+                "classification": {"category": "GENERAL", "reason": "Greeting"}
+            }
+
+        # Classify other queries
         classification = await classify_query(query.text)
         logger.info(f"Query classified as: {classification['category']} - {classification['reason']}")
         
