@@ -36,6 +36,7 @@ general_llm = LlamaCpp(
     callback_manager=callback_manager,
     temperature=AVAILABLE_MODELS[ModelType.GENERAL].temperature,
     max_tokens=AVAILABLE_MODELS[ModelType.GENERAL].max_tokens,
+    n_ctx=4096,  # Set context window to 4096 tokens
     verbose=True,
 )
 
@@ -45,6 +46,7 @@ code_llm = LlamaCpp(
     callback_manager=callback_manager,
     temperature=AVAILABLE_MODELS[ModelType.CODE].temperature,
     max_tokens=AVAILABLE_MODELS[ModelType.CODE].max_tokens,
+    n_ctx=4096,  # Set context window to 4096 tokens
     verbose=True,
 )
 
